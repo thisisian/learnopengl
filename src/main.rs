@@ -1,8 +1,11 @@
 extern crate gl;
 extern crate sdl2;
 
+mod lib;
+
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
+const ENABLE_POLYGON_MODE: bool = false;
 
 unsafe fn render(shader_program: u32, vbo: u32) {
     gl::ClearColor(0.2, 0.3, 0.3, 1.0);
@@ -12,10 +15,25 @@ unsafe fn render(shader_program: u32, vbo: u32) {
     gl::DrawArrays(gl::TRIANGLES, 0, 3);
 }
 
-unsafe fn panic_on_gl_error() {
+fn gl_enum_to_error(err: gl::types::GLenum) -> String {
+    match err {
+        gl::INVALID_ENUM => "GL_INVALID_ENUM".to_owned(),
+        gl::INVALID_OPERATION => "GL_INVALID_OPERATION".to_owned(),
+        gl::STACK_OVERFLOW => "GL_STACK_OVERFLOW".to_owned(),
+        gl::STACK_UNDERFLOW => "GL_STACK_UNDERFLOW".to_owned(),
+        gl::OUT_OF_MEMORY => "GL_OUT_OF_MEMORY".to_owned(),
+        gl::INVALID_FRAMEBUFFER_OPERATION => "GL_INVALID_FR".to_owned(),
+        gl::CONTEXT_LOST => "GL_CONTEXT_LOST".to_owned(),
+        _ => format!("Unknown error code {}", err).to_owned(),
+    }
+}
+
+unsafe fn check_gl_error() -> Result<(), String> {
     let err = gl::GetError();
     if err != 0 {
-        panic!("OpenGL error code: {err}")
+        Err(gl_enum_to_error(err))
+    } else {
+        Ok(())
     }
 }
 
@@ -30,32 +48,6 @@ unsafe fn check_shader_link_errors(shader: u32) {
         let mut buff = Vec::<u8>::with_capacity(log_length as usize);
         println!("{log_length}");
         gl::GetProgramInfoLog(
-            shader,
-            log_length,
-            std::ptr::null_mut(),
-            buff.as_ptr() as *mut i8,
-        );
-        buff.set_len((log_length) as usize);
-
-        println!("{log_length}");
-        let c_string = std::ffi::CString::from_vec_with_nul(buff).unwrap();
-        println!("{}", c_string.to_str().unwrap());
-    } else {
-        println!("SUCCESS!");
-    }
-}
-
-unsafe fn check_shader_compile_errors(shader: u32) {
-    let mut success: i32 = 0;
-    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success as *mut i32);
-    if success == gl::FALSE as i32 {
-        println!("FAILED TO COMPILE!");
-        let mut log_length: i32 = 0;
-        gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut log_length as *mut i32);
-
-        let mut buff = Vec::<u8>::with_capacity(log_length as usize);
-        println!("{log_length}");
-        gl::GetShaderInfoLog(
             shader,
             log_length,
             std::ptr::null_mut(),
@@ -87,19 +79,18 @@ fn main() {
         .unwrap();
 
     let _gl_context = window.gl_create_context().unwrap();
+
     gl::load_with(|name| video_subsystem.gl_get_proc_address(name) as *const _);
 
-    debug_assert_eq!(gl_attr.context_profile(), sdl2::video::GLProfile::Core);
-    debug_assert_eq!(gl_attr.context_version(), (3, 3));
+    assert_eq!(gl_attr.context_profile(), sdl2::video::GLProfile::Core);
+    assert_eq!(gl_attr.context_version(), (3, 3));
 
     unsafe {
         gl::Viewport(0, 0, SCREEN_WIDTH as i32, SCREEN_HEIGHT as i32);
     }
 
     // load shaders
-    let vertex_shader = unsafe { gl::CreateShader(gl::VERTEX_SHADER) };
-    let vertex_shader_source = std::ffi::CString::new(
-        r#"
+    let vertex_shader_source = r#"
                 #version 330 core
                 layout (location = 0) in vec3 aPos;
 
@@ -107,46 +98,23 @@ fn main() {
                 {
                     gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
                 }
-            "#,
-    )
-    .unwrap();
+            "#;
+    let vertex_shader =
+        unsafe { lib::create_shader(vertex_shader_source, gl::VERTEX_SHADER).unwrap() };
 
-    unsafe {
-        gl::ShaderSource(
-            vertex_shader,
-            1,
-            &(vertex_shader_source.as_ptr() as *const i8) as *const *const i8,
-            std::ptr::null(),
-        );
-        gl::CompileShader(vertex_shader);
-        check_shader_compile_errors(vertex_shader);
-    }
-
-    let fragment_shader_source = std::ffi::CString::new(
-        r#"
+    let fragment_shader_source = r#"
             #version 330 core
             out vec4 FragColor;
 
             void main()
             {
                 FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-            }"#,
-    )
-    .unwrap();
-    let fragment_shader = unsafe { gl::CreateShader(gl::FRAGMENT_SHADER) };
-    unsafe {
-        gl::ShaderSource(
-            fragment_shader,
-            1,
-            &(fragment_shader_source.as_ptr() as *const i8) as *const *const i8,
-            std::ptr::null(),
-        );
-        gl::CompileShader(fragment_shader);
-        check_shader_compile_errors(fragment_shader);
+            }"#;
 
-        // link shader
-    }
+    let fragment_shader =
+        unsafe { lib::create_shader(fragment_shader_source, gl::FRAGMENT_SHADER).unwrap() };
 
+    // link shaders
     let shader_program = unsafe { gl::CreateProgram() };
     unsafe {
         gl::AttachShader(shader_program, vertex_shader);
@@ -191,7 +159,6 @@ fn main() {
             0,         // stride 0 defaults to width of each vertex without additional data
             std::ptr::null(),
         );
-        panic_on_gl_error();
         // Enable the attribute.
         gl::EnableVertexAttribArray(0);
 
@@ -199,7 +166,11 @@ fn main() {
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
     }
 
-    //unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE) }
+    if ENABLE_POLYGON_MODE {
+        unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE) }
+    }
+
+    unsafe { check_gl_error().unwrap() };
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
