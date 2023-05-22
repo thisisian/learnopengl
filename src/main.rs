@@ -9,8 +9,8 @@ const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const ENABLE_POLYGON_MODE: bool = false;
 
-unsafe fn draw(shader_program: u32, vbo: u32) {
-    gl::UseProgram(shader_program);
+unsafe fn draw(shader_program: &ShaderProgram, vbo: u32) {
+    shader_program.use_program();
     gl::BindVertexArray(vbo);
     gl::DrawArrays(
         gl::TRIANGLES,
@@ -25,6 +25,7 @@ unsafe fn pre_render() {
 }
 
 fn main() {
+    let program_start = std::time::Instant::now();
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let gl_attr = video_subsystem.gl_attr();
@@ -51,72 +52,36 @@ fn main() {
     }
 
     // load shaders
-    let vertex_shader_source = r#"
-                #version 330 core
-                layout (location = 0) in vec3 aPos;
+    let vertex_shader_source =
+        std::str::from_utf8(include_bytes!("./shaders/vertex_shader.glsl")).unwrap();
+    let vertex_shader =
+        unsafe { Shader::from_str(vertex_shader_source, ShaderType::VertexShader).unwrap() };
 
-                void main()
-                {
-                    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-                }
-            "#;
-    let vertex_shader = unsafe { create_shader(vertex_shader_source, gl::VERTEX_SHADER).unwrap() };
-
-    let fragment_shader_orange_source = r#"
-            #version 330 core
-            out vec4 FragColor;
-
-            void main()
-            {
-                FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);
-            }"#;
-
-    let fragment_shader_yellow_source = r#"
-            #version 330 core
-            out vec4 FragColor;
-
-            void main()
-            {
-                FragColor = vec4(1.0f, 1.0f, 0.2f, 1.0f);
-            }"#;
-
-    let fragment_shader_orange =
-        unsafe { create_shader(fragment_shader_orange_source, gl::FRAGMENT_SHADER).unwrap() };
-
-    let fragment_shader_yellow =
-        unsafe { create_shader(fragment_shader_yellow_source, gl::FRAGMENT_SHADER).unwrap() };
+    let fragment_shader_source =
+        std::str::from_utf8(include_bytes!("./shaders/fragment_shader.glsl")).unwrap();
+    let fragment_shader =
+        unsafe { Shader::from_str(fragment_shader_source, ShaderType::FragmentShader).unwrap() };
 
     // link shaders
-    let shader_program_orange =
-        unsafe { link_shader_program(&[vertex_shader, fragment_shader_orange]) };
-    let shader_program_yellow =
-        unsafe { link_shader_program(&[vertex_shader, fragment_shader_yellow]) };
-
-    // These are no longer needed now that we've linked them.
+    let shader_program = unsafe { ShaderProgram::new() };
     unsafe {
-        gl::DeleteShader(vertex_shader);
-        gl::DeleteShader(fragment_shader_orange);
-        gl::DeleteShader(fragment_shader_yellow);
-    }
+        shader_program.attach_shader(vertex_shader);
+        shader_program.attach_shader(fragment_shader);
+        shader_program
+            .link_program()
+            .expect("Shader linking failed");
+    };
 
     #[rustfmt::skip]
     // create verts
-    let verts1: [f32; 9] = [
-        -0.5, 0.0, 0.0,
-        0.0, -0.5, 0.0,
-        0.0, 0.5, 0.0,
+    let verts1: [f32; 18] = [
+        // loc           // color
+        0.5, -0.5, 0.0,   1.0, 0.0, 0.0,
+        -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,
+        0.0, 0.5, 0.0,  0.0, 0.0, 1.0
     ];
 
-    #[rustfmt::skip]
-    // create verts
-    let verts2: [f32; 9] = [
-        0.5, 0.0, 0.0,
-        0.0, 0.5, 0.0,
-        0.0, -0.5, 0.0,
-    ];
-
-    let vao1 = unsafe { create_vbo(&verts1) };
-    let vao2 = unsafe { create_vbo(&verts2) };
+    let vao = unsafe { create_vbo(&verts1) };
 
     if ENABLE_POLYGON_MODE {
         unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE) }
@@ -127,9 +92,13 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
         unsafe {
+            let millis = program_start.elapsed().as_secs_f64() as f64;
+            let green_value = (millis.sin() / 2.0) + 0.5;
+            shader_program
+                .set_uniform_f64("greenValue", green_value as f32)
+                .expect("Failed to set uniform");
             pre_render();
-            draw(shader_program_orange, vao1);
-            draw(shader_program_yellow, vao2);
+            draw(&shader_program, vao);
         };
 
         window.gl_swap_window();
