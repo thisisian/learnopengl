@@ -1,8 +1,108 @@
+use std::env;
 use std::ffi::c_void;
+
 #[repr(u32)]
 pub enum ShaderType {
     VertexShader = gl::VERTEX_SHADER,
     FragmentShader = gl::FRAGMENT_SHADER,
+}
+
+pub struct Texture {
+    pub id: u32,
+}
+
+impl Texture {
+    pub unsafe fn new(name: &str) -> Result<Self, String> {
+        let path = env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("textures")
+            .join(name);
+
+        if !path.exists() {
+            return Err(format!("Texture file not found: {}", path.display()));
+        }
+
+        let img = image::io::Reader::open(path)
+            .map_err(|x| x.to_string())?
+            .decode()
+            .map_err(|x| x.to_string())?;
+
+        let mut id = 0;
+        gl::GenTextures(1, &mut id);
+        gl::BindTexture(gl::TEXTURE_2D, id);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+        gl::TexParameteri(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_MIN_FILTER,
+            gl::LINEAR_MIPMAP_LINEAR as i32,
+        );
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+        let rgb8 = img.into_rgb8();
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            gl::RGB as i32,
+            rgb8.width() as i32,
+            rgb8.height() as i32,
+            0,
+            gl::RGB,
+            gl::UNSIGNED_BYTE,
+            rgb8.as_ptr() as *const c_void,
+        );
+        gl::GenerateMipmap(gl::TEXTURE_2D);
+        gl::BindTexture(gl::TEXTURE_2D, 0);
+        Ok(Texture { id })
+    }
+
+    pub unsafe fn new_rgba(name: &str) -> Result<Self, String> {
+        let path = env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("textures")
+            .join(name);
+
+        if !path.exists() {
+            return Err(format!("Texture file not found: {}", path.display()));
+        }
+
+        let img = image::io::Reader::open(path)
+            .map_err(|x| x.to_string())?
+            .decode()
+            .map_err(|x| x.to_string())?;
+
+        let mut id = 0;
+        gl::GenTextures(1, &mut id);
+        gl::BindTexture(gl::TEXTURE_2D, id);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+        gl::TexParameteri(
+            gl::TEXTURE_2D,
+            gl::TEXTURE_MIN_FILTER,
+            gl::LINEAR_MIPMAP_LINEAR as i32,
+        );
+        gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+        let rgba8 = img.into_rgba8();
+        gl::TexImage2D(
+            gl::TEXTURE_2D,
+            0,
+            gl::RGB as i32,
+            rgba8.width() as i32,
+            rgba8.height() as i32,
+            0,
+            gl::RGBA,
+            gl::UNSIGNED_BYTE,
+            rgba8.as_ptr() as *const c_void,
+        );
+        gl::GenerateMipmap(gl::TEXTURE_2D);
+        gl::BindTexture(gl::TEXTURE_2D, 0);
+        Ok(Texture { id })
+    }
 }
 
 pub struct Shader {
@@ -66,7 +166,15 @@ impl ShaderProgram {
         }
     }
 
-    pub unsafe fn set_uniform_f64(&self, name: &str, value: f32) -> Result<(), String> {
+    pub unsafe fn set_uniform_i32(&self, name: &str, value: i32) -> Result<(), String> {
+        let location = self.get_uniform_location(name)?;
+        self.use_program();
+        gl::Uniform1i(location, value);
+        check_gl_error()?;
+        Ok(())
+    }
+
+    pub unsafe fn set_uniform_f32(&self, name: &str, value: f32) -> Result<(), String> {
         let location = self.get_uniform_location(name)?;
         self.use_program();
         gl::Uniform1f(location, value);
@@ -120,9 +228,10 @@ unsafe fn check_shader_compile_errors(shader: u32) -> Result<(), String> {
     }
 }
 
-pub unsafe fn create_vbo(verts: &[f32]) -> u32 {
-    let mut vbo: u32 = 0;
+pub unsafe fn create_vao(verts: &[f32], indices: &[u32]) -> u32 {
+    let mut vbo = 0;
     let mut vao = 0;
+    let mut ebo = 0;
     unsafe {
         // Initialize vbo and vao
         gl::GenVertexArrays(1, &mut vao as *mut u32);
@@ -140,30 +249,53 @@ pub unsafe fn create_vbo(verts: &[f32]) -> u32 {
             gl::STATIC_DRAW, // data will not change often
         );
 
+        // Creating the EBO buffer
+        gl::GenBuffers(1, &mut ebo as *mut u32);
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (indices.len() * std::mem::size_of::<u32>()) as isize,
+            indices.as_ptr() as *const std::ffi::c_void,
+            gl::STATIC_DRAW,
+        );
+
         // Configure attributes.
-        // Describe the kind of data we're passing to location 0 (index zero of vao?).
+        // Describe the kind of data we're passing to location 0
         gl::VertexAttribPointer(
             0, // we want to bind this attribute to position 0
             3, // each vertex is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
             0 as *const c_void,
         );
 
         // Enable the attribute.
         gl::EnableVertexAttribArray(0);
 
+        // color attributes
         gl::VertexAttribPointer(
-            1, // we want to bind this attribute to position 0
+            1, // we want to bind this attribute to position 1
             3, // each vertex is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
-            (std::mem::size_of::<f32>() * 3) as *const c_void,
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 3) as *const c_void, // first data starts at 3rd float value
         );
         // Enable the attribute.
         gl::EnableVertexAttribArray(1);
+
+        // texture coordinate attributes
+        gl::VertexAttribPointer(
+            2, // we want to bind this attribute to position 2
+            2, // each vertex is two floats long
+            gl::FLOAT,
+            gl::FALSE, // do not normalize data points between [-1.0, 1.0]
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 6) as *const c_void,
+        );
+        // Enable the attribute.
+        gl::EnableVertexAttribArray(2);
 
         // unbind buffer
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);

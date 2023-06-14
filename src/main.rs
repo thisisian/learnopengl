@@ -1,23 +1,13 @@
 extern crate gl;
 extern crate sdl2;
 
-mod lib;
-
-use lib::*;
+use learnopengl::*;
 
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const ENABLE_POLYGON_MODE: bool = false;
 
-unsafe fn draw(shader_program: &ShaderProgram, vbo: u32) {
-    shader_program.use_program();
-    gl::BindVertexArray(vbo);
-    gl::DrawArrays(
-        gl::TRIANGLES,
-        0,
-        3, /* must match number of verts in vbo */
-    );
-}
+unsafe fn draw(shader_program: &ShaderProgram, vbo: u32, texture: &Texture) {}
 
 unsafe fn pre_render() {
     gl::ClearColor(0.2, 0.3, 0.3, 1.0);
@@ -73,15 +63,24 @@ fn main() {
     };
 
     #[rustfmt::skip]
-    // create verts
-    let verts1: [f32; 18] = [
-        // loc           // color
-        0.5, -0.5, 0.0,   1.0, 0.0, 0.0,
-        -0.5, -0.5, 0.0, 0.0, 1.0, 0.0,
-        0.0, 0.5, 0.0,  0.0, 0.0, 1.0
+    let verts: [f32; 32] = [
+        // loc            // color        // texture coords
+         0.5,  0.5, 0.0,  1.0, 0.0, 0.0,  1.0, 1.0,
+         0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  1.0, 0.0,
+        -0.5, -0.5, 0.0,  0.0, 0.0, 1.0,  0.0, 0.0,
+        -0.5,  0.5, 0.0,  1.0, 1.0, 0.0,  0.0, 1.0,
     ];
 
-    let vao = unsafe { create_vbo(&verts1) };
+    #[rustfmt::skip]
+    let indices: [u32; 6] = [
+        0, 1, 3,
+        1, 2, 3,
+    ];
+
+    let vao = unsafe { create_vao(&verts, &indices) };
+
+    let texture = unsafe { Texture::new("container.jpg").unwrap() };
+    let texture_smile = unsafe { Texture::new("awesomeface.png").unwrap() };
 
     if ENABLE_POLYGON_MODE {
         unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE) }
@@ -92,13 +91,16 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
         unsafe {
-            let millis = program_start.elapsed().as_secs_f64() as f64;
-            let green_value = (millis.sin() / 2.0) + 0.5;
-            shader_program
-                .set_uniform_f64("greenValue", green_value as f32)
-                .expect("Failed to set uniform");
             pre_render();
-            draw(&shader_program, vao);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, texture.id);
+            gl::ActiveTexture(gl::TEXTURE1);
+            gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
+            shader_program.use_program();
+            shader_program.set_uniform_i32("texture2", 1);
+            gl::BindVertexArray(vao);
+            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+            gl::BindVertexArray(0);
         };
 
         window.gl_swap_window();
