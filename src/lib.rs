@@ -27,7 +27,8 @@ impl Texture {
         let img = image::io::Reader::open(path)
             .map_err(|x| x.to_string())?
             .decode()
-            .map_err(|x| x.to_string())?;
+            .map_err(|x| x.to_string())?
+            .flipv();
 
         let mut id = 0;
         gl::GenTextures(1, &mut id);
@@ -73,7 +74,8 @@ impl Texture {
         let img = image::io::Reader::open(path)
             .map_err(|x| x.to_string())?
             .decode()
-            .map_err(|x| x.to_string())?;
+            .map_err(|x| x.to_string())?
+            .flipv();
 
         let mut id = 0;
         gl::GenTextures(1, &mut id);
@@ -178,6 +180,14 @@ impl ShaderProgram {
         let location = self.get_uniform_location(name)?;
         self.use_program();
         gl::Uniform1f(location, value);
+        check_gl_error()?;
+        Ok(())
+    }
+
+    pub unsafe fn set_uniform_mat4(&self, name: &str, value: &glam::Mat4) -> Result<(), String> {
+        let location = self.get_uniform_location(name)?;
+        self.use_program();
+        gl::UniformMatrix4fv(location, 1, gl::FALSE, &value.to_cols_array()[0]);
         check_gl_error()?;
         Ok(())
     }

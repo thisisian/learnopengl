@@ -7,15 +7,13 @@ const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const ENABLE_POLYGON_MODE: bool = false;
 
-unsafe fn draw(shader_program: &ShaderProgram, vbo: u32, texture: &Texture) {}
-
 unsafe fn pre_render() {
     gl::ClearColor(0.2, 0.3, 0.3, 1.0);
     gl::Clear(gl::COLOR_BUFFER_BIT);
 }
 
 fn main() {
-    let program_start = std::time::Instant::now();
+    let program_start_time = std::time::Instant::now();
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let gl_attr = video_subsystem.gl_attr();
@@ -97,7 +95,17 @@ fn main() {
             gl::ActiveTexture(gl::TEXTURE1);
             gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
             shader_program.use_program();
-            shader_program.set_uniform_i32("texture2", 1);
+            shader_program.set_uniform_i32("texture2", 1).unwrap();
+            let trans1 = glam::Mat4::from_scale_rotation_translation(
+                glam::vec3(0.5, 0.5, 0.5),
+                glam::Quat::from_rotation_z(f32::to_radians(
+                    program_start_time.elapsed().as_secs_f32() * 90.0,
+                )),
+                glam::vec3(0.5, -0.5, 0.0),
+            );
+            shader_program
+                .set_uniform_mat4("transform", &trans1)
+                .unwrap();
             gl::BindVertexArray(vao);
             gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
             gl::BindVertexArray(0);
