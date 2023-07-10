@@ -9,7 +9,7 @@ const ENABLE_POLYGON_MODE: bool = false;
 
 unsafe fn pre_render() {
     gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-    gl::Clear(gl::COLOR_BUFFER_BIT);
+    gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 }
 
 fn main() {
@@ -70,12 +70,58 @@ fn main() {
     ];
 
     #[rustfmt::skip]
+    let cube_verts: [f32; 180] = [
+        // loc             // texture coords
+        -0.5, -0.5, -0.5,  0.0, 0.0,
+         0.5, -0.5, -0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 0.0,
+
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 1.0,
+        -0.5,  0.5,  0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5, -0.5,  1.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5,  0.5,  1.0, 0.0,
+
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5,  0.5,  0.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+         0.5, -0.5, -0.5,  1.0, 1.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+         0.5, -0.5,  0.5,  1.0, 0.0,
+        -0.5, -0.5,  0.5,  0.0, 0.0,
+        -0.5, -0.5, -0.5,  0.0, 1.0,
+
+        -0.5,  0.5, -0.5,  0.0, 1.0,
+         0.5,  0.5, -0.5,  1.0, 1.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+         0.5,  0.5,  0.5,  1.0, 0.0,
+        -0.5,  0.5,  0.5,  0.0, 0.0,
+        -0.5,  0.5, -0.5,  0.0, 1.0
+    ];
+
+    #[rustfmt::skip]
     let indices: [u32; 6] = [
         0, 1, 3,
         1, 2, 3,
     ];
 
-    let vao = unsafe { create_vao(&verts, &indices) };
+    let vao = unsafe { create_vao(&cube_verts) };
 
     let texture = unsafe { Texture::new("container.jpg").unwrap() };
     let texture_smile = unsafe { Texture::new("awesomeface.png").unwrap() };
@@ -85,6 +131,25 @@ fn main() {
     }
 
     unsafe { check_gl_error().unwrap() };
+
+    let view = glam::Mat4::from_translation(glam::vec3(0.0, 0.0, -3.0));
+    let projection = glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
+    let cube_positions: [glam::Vec3; 10] = [
+        glam::vec3(0.0, 0.0, 0.0),
+        glam::vec3(2.0, 5.0, -15.0),
+        glam::vec3(-1.5, -2.2, -2.5),
+        glam::vec3(-3.8, -2.0, -12.3),
+        glam::vec3(2.4, -0.4, -3.5),
+        glam::vec3(-1.7, 3.0, -7.5),
+        glam::vec3(1.3, -2.0, -2.5),
+        glam::vec3(1.5, 2.0, -2.5),
+        glam::vec3(1.5, 0.2, -1.5),
+        glam::vec3(-1.3, 1.0, -1.5),
+    ];
+
+    unsafe {
+        gl::Enable(gl::DEPTH_TEST);
+    }
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
@@ -96,18 +161,24 @@ fn main() {
             gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
             shader_program.use_program();
             shader_program.set_uniform_i32("texture2", 1).unwrap();
-            let trans1 = glam::Mat4::from_scale_rotation_translation(
-                glam::vec3(0.5, 0.5, 0.5),
-                glam::Quat::from_rotation_z(f32::to_radians(
-                    program_start_time.elapsed().as_secs_f32() * 90.0,
-                )),
-                glam::vec3(0.5, -0.5, 0.0),
-            );
+            shader_program.set_uniform_mat4("view", &view).unwrap();
             shader_program
-                .set_uniform_mat4("transform", &trans1)
+                .set_uniform_mat4("projection", &projection)
                 .unwrap();
             gl::BindVertexArray(vao);
-            gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, std::ptr::null());
+
+            for position in cube_positions {
+                let model = glam::Mat4::from_rotation_translation(
+                    glam::Quat::from_axis_angle(
+                        glam::vec3(0.5, 1.0, 0.5).normalize(),
+                        program_start_time.elapsed().as_secs_f32(),
+                    ),
+                    position,
+                );
+
+                shader_program.set_uniform_mat4("model", &model).unwrap();
+                gl::DrawArrays(gl::TRIANGLES, 0, 36);
+            }
             gl::BindVertexArray(0);
         };
 

@@ -238,7 +238,60 @@ unsafe fn check_shader_compile_errors(shader: u32) -> Result<(), String> {
     }
 }
 
-pub unsafe fn create_vao(verts: &[f32], indices: &[u32]) -> u32 {
+// VAO with a vertex attribute and a color attribute
+pub unsafe fn create_vao(verts: &[f32]) -> u32 {
+    let mut vbo = 0;
+    let mut vao = 0;
+    unsafe {
+        // Initialize vbo and vao
+        gl::GenVertexArrays(1, &mut vao as *mut u32);
+        gl::GenBuffers(1, &mut vbo as *mut u32);
+        // These steps need to be done in this order
+        // Bind the vertex array
+        gl::BindVertexArray(vao);
+        // Binding the array buffer, this associates this VBO with this VAO
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        // Initialize data in the buffer
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (verts.len() * std::mem::size_of::<f32>()) as isize,
+            verts.as_ptr() as *const std::ffi::c_void,
+            gl::STATIC_DRAW, // data will not change often
+        );
+
+        // Configure attributes.
+        // Describe the kind of data we're passing to location 0
+        gl::VertexAttribPointer(
+            0, // we want to bind this attribute to position 0
+            3, // each vertex is three floats long
+            gl::FLOAT,
+            gl::FALSE, // do not normalize data points between [-1.0, 1.0]
+            (std::mem::size_of::<f32>() * 5) as i32, // stride 0 defaults to width of each vertex without additional data
+            0 as *const c_void,
+        );
+
+        // Enable the attribute.
+        gl::EnableVertexAttribArray(0);
+
+        // texture coordinate attributes
+        gl::VertexAttribPointer(
+            1, // we want to bind this attribute to position 1
+            2, // each vertex is two floats long
+            gl::FLOAT,
+            gl::FALSE, // do not normalize data points between [-1.0, 1.0]
+            (std::mem::size_of::<f32>() * 5) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 3) as *const c_void, // first data starts at 3rd float value
+        );
+        // Enable the attribute.
+        gl::EnableVertexAttribArray(1);
+
+        // unbind buffer
+        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+    }
+    vao
+}
+
+pub unsafe fn create_vao_indices(verts: &[f32], indices: &[u32]) -> u32 {
     let mut vbo = 0;
     let mut vao = 0;
     let mut ebo = 0;
