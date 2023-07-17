@@ -388,3 +388,81 @@ unsafe fn check_shader_link_errors(shader: u32) -> Result<(), String> {
         Ok(())
     }
 }
+
+pub struct Camera {
+    position: glam::Vec3,
+    front: glam::Vec3,
+    up: glam::Vec3,
+    right: glam::Vec3,
+    world_up: glam::Vec3,
+    yaw: f32,
+    pitch: f32,
+    movement_speed: f32,
+    mouse_sensitivity: f32,
+    pub zoom: f32,
+}
+
+pub enum CameraDirection {
+    Forward,
+    Backward,
+    Left,
+    Right,
+}
+
+impl Camera {
+    pub fn new() -> Self {
+        let mut camera = Camera {
+            position: glam::vec3(0.0, 0.0, -3.0),
+            front: glam::vec3(0.0, 0.0, 0.0),
+            up: glam::vec3(0.0, 1.0, 0.0),
+            right: glam::vec3(1.0, 0.0, 0.0),
+            world_up: glam::vec3(0.0, 1.0, 0.0),
+            yaw: -90.0,
+            pitch: 0.0,
+            movement_speed: 2.5,
+            mouse_sensitivity: 0.1,
+            zoom: 45.0,
+        };
+        camera.update_camera_vectors();
+        camera
+    }
+
+    pub fn get_view_matrix(&self) -> glam::Mat4 {
+        glam::Mat4::look_at_rh(self.position, self.position + self.front, self.up)
+    }
+
+    pub fn process_keyboard(
+        &mut self,
+        camera_direction: CameraDirection,
+        delta_time: std::time::Duration,
+    ) {
+        let velocity = delta_time.as_secs_f32() * self.movement_speed;
+        match camera_direction {
+            CameraDirection::Forward => self.position += self.front * velocity,
+            CameraDirection::Backward => self.position -= self.front * velocity,
+            CameraDirection::Left => self.position -= self.right * velocity,
+            CameraDirection::Right => self.position += self.right * velocity,
+        }
+    }
+
+    pub fn process_mouse_movement(&mut self, x_offset: i32, y_offset: i32) {
+        self.yaw += x_offset as f32 * self.mouse_sensitivity;
+        self.pitch = (self.pitch - y_offset as f32 * self.mouse_sensitivity).clamp(-89.9, 89.9);
+        self.update_camera_vectors();
+    }
+
+    fn update_camera_vectors(&mut self) {
+        self.front = glam::vec3(
+            self.yaw.to_radians().cos() * self.pitch.to_radians().cos(),
+            self.pitch.to_radians().sin(),
+            self.yaw.to_radians().sin() * self.pitch.to_radians().cos(),
+        )
+        .normalize();
+        self.right = self.front.cross(self.world_up).normalize();
+        self.up = self.right.cross(self.front).normalize();
+    }
+
+    pub fn process_mouse_scroll(&mut self, y_offset: i32) {
+        self.zoom = (self.zoom - y_offset as f32).clamp(1.0, 45.0);
+    }
+}

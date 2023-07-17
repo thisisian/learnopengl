@@ -29,6 +29,8 @@ fn main() {
         .unwrap();
 
     let _gl_context = window.gl_create_context().unwrap();
+    sdl_context.mouse().show_cursor(false);
+    sdl_context.mouse().set_relative_mouse_mode(true);
 
     gl::load_with(|name| video_subsystem.gl_get_proc_address(name) as *const _);
 
@@ -132,8 +134,7 @@ fn main() {
 
     unsafe { check_gl_error().unwrap() };
 
-    let view = glam::Mat4::from_translation(glam::vec3(0.0, 0.0, -3.0));
-    let projection = glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
+    let mut projection = glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
     let cube_positions: [glam::Vec3; 10] = [
         glam::vec3(0.0, 0.0, 0.0),
         glam::vec3(2.0, 5.0, -15.0),
@@ -151,8 +152,16 @@ fn main() {
         gl::Enable(gl::DEPTH_TEST);
     }
 
+    let mut camera = Camera::new();
+    let mut current_frame: std::time::Instant;
+    let mut last_frame = std::time::Instant::now();
+    let mut delta_time: std::time::Duration;
+
     let mut event_pump = sdl_context.event_pump().unwrap();
     'running: loop {
+        current_frame = std::time::Instant::now();
+        delta_time = current_frame - last_frame;
+        last_frame = current_frame;
         unsafe {
             pre_render();
             gl::ActiveTexture(gl::TEXTURE0);
@@ -161,6 +170,8 @@ fn main() {
             gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
             shader_program.use_program();
             shader_program.set_uniform_i32("texture2", 1).unwrap();
+            projection = glam::Mat4::perspective_rh(f32::to_radians(camera.zoom), 800.0 / 600.0, 0.1, 100.0);
+            let view = camera.get_view_matrix();
             shader_program.set_uniform_mat4("view", &view).unwrap();
             shader_program
                 .set_uniform_mat4("projection", &projection)
@@ -199,6 +210,28 @@ fn main() {
                     }
                 }
                 sdl2::event::Event::Quit { .. } => break 'running,
+                sdl2::event::Event::MouseWheel {
+                    timestamp: _,
+                    window_id: _,
+                    which: _,
+                    x: _,
+                    y,
+                    direction: _,
+                } => {
+                    camera.process_mouse_scroll(y);
+                }
+                sdl2::event::Event::MouseMotion {
+                    timestamp: _,
+                    window_id: _,
+                    which: _,
+                    mousestate: _,
+                    x: _,
+                    y: _,
+                    xrel,
+                    yrel,
+                } => {
+                    camera.process_mouse_movement(xrel, yrel);
+                }
                 sdl2::event::Event::KeyDown {
                     timestamp: _,
                     window_id: _,
@@ -208,6 +241,18 @@ fn main() {
                     repeat: _,
                 } => match keycode {
                     Some(sdl2::keyboard::Keycode::Escape) => break 'running,
+                    Some(sdl2::keyboard::Keycode::W) => {
+                        camera.process_keyboard(CameraDirection::Forward, delta_time);
+                    }
+                    Some(sdl2::keyboard::Keycode::A) => {
+                        camera.process_keyboard(CameraDirection::Left, delta_time);
+                    }
+                    Some(sdl2::keyboard::Keycode::S) => {
+                        camera.process_keyboard(CameraDirection::Backward, delta_time);
+                    }
+                    Some(sdl2::keyboard::Keycode::D) => {
+                        camera.process_keyboard(CameraDirection::Right, delta_time);
+                    }
                     _ => {}
                 },
                 _ => {}
