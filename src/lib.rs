@@ -191,6 +191,20 @@ impl ShaderProgram {
         check_gl_error()?;
         Ok(())
     }
+
+    pub unsafe fn set_uniform_vec3(
+        &self,
+        name: &str,
+        v1: f32,
+        v2: f32,
+        v3: f32,
+    ) -> Result<(), String> {
+        let location = self.get_uniform_location(name)?;
+        self.use_program();
+        gl::Uniform3f(location, v1, v2, v3);
+        check_gl_error()?;
+        Ok(())
+    }
 }
 
 fn gl_enum_to_error(err: gl::types::GLenum) -> String {
@@ -427,6 +441,11 @@ impl Camera {
         camera
     }
 
+    pub fn set_position(&mut self, position: glam::Vec3) {
+        self.position = position;
+        self.update_camera_vectors();
+    }
+
     pub fn get_view_matrix(&self) -> glam::Mat4 {
         glam::Mat4::look_at_rh(self.position, self.position + self.front, self.up)
     }
@@ -480,7 +499,7 @@ impl Keyboard {
             w: false,
             a: false,
             s: false,
-            d: false
+            d: false,
         }
     }
 }

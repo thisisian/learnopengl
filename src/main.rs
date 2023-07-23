@@ -42,34 +42,53 @@ fn main() {
     }
 
     // load shaders
-    let vertex_shader_source =
-        std::str::from_utf8(include_bytes!("./shaders/vertex_shader.glsl")).unwrap();
-    let vertex_shader =
-        unsafe { Shader::from_str(vertex_shader_source, ShaderType::VertexShader).unwrap() };
+    let box_shader_program = {
+        let vertex_shader_source =
+            std::str::from_utf8(include_bytes!("./shaders/vertex_shader.glsl")).unwrap();
+        let vertex_shader =
+            unsafe { Shader::from_str(vertex_shader_source, ShaderType::VertexShader).unwrap() };
 
-    let fragment_shader_source =
-        std::str::from_utf8(include_bytes!("./shaders/fragment_shader.glsl")).unwrap();
-    let fragment_shader =
-        unsafe { Shader::from_str(fragment_shader_source, ShaderType::FragmentShader).unwrap() };
+        let fragment_shader_source =
+            std::str::from_utf8(include_bytes!("./shaders/fragment_shader.glsl")).unwrap();
+        let fragment_shader = unsafe {
+            Shader::from_str(fragment_shader_source, ShaderType::FragmentShader).unwrap()
+        };
 
-    // link shaders
-    let shader_program = unsafe { ShaderProgram::new() };
-    unsafe {
-        shader_program.attach_shader(vertex_shader);
-        shader_program.attach_shader(fragment_shader);
+        // link shaders
+        let shader_program = unsafe { ShaderProgram::new() };
+        unsafe {
+            shader_program.attach_shader(vertex_shader);
+            shader_program.attach_shader(fragment_shader);
+            shader_program
+                .link_program()
+                .expect("Shader linking failed");
+        };
         shader_program
-            .link_program()
-            .expect("Shader linking failed");
     };
 
-    #[rustfmt::skip]
-    let verts: [f32; 32] = [
-        // loc            // color        // texture coords
-         0.5,  0.5, 0.0,  1.0, 0.0, 0.0,  1.0, 1.0,
-         0.5, -0.5, 0.0,  0.0, 1.0, 0.0,  1.0, 0.0,
-        -0.5, -0.5, 0.0,  0.0, 0.0, 1.0,  0.0, 0.0,
-        -0.5,  0.5, 0.0,  1.0, 1.0, 0.0,  0.0, 1.0,
-    ];
+    let light_shader_program = {
+        let vertex_shader_source =
+            std::str::from_utf8(include_bytes!("./shaders/vertex_shader_light.glsl")).unwrap();
+        let vertex_shader =
+            unsafe { Shader::from_str(vertex_shader_source, ShaderType::VertexShader).unwrap() };
+
+        let fragment_shader_source =
+            std::str::from_utf8(include_bytes!("./shaders/fragment_shader_light.glsl")).unwrap();
+        let fragment_shader = unsafe {
+            Shader::from_str(fragment_shader_source, ShaderType::FragmentShader).unwrap()
+        };
+
+        // link shaders
+        let shader_program = unsafe { ShaderProgram::new() };
+        unsafe {
+            shader_program.attach_shader(vertex_shader);
+            shader_program.attach_shader(fragment_shader);
+            shader_program
+                .link_program()
+                .expect("Shader linking failed");
+        };
+        shader_program
+    };
 
     #[rustfmt::skip]
     let cube_verts: [f32; 180] = [
@@ -117,16 +136,8 @@ fn main() {
         -0.5,  0.5, -0.5,  0.0, 1.0
     ];
 
-    #[rustfmt::skip]
-    let indices: [u32; 6] = [
-        0, 1, 3,
-        1, 2, 3,
-    ];
-
     let vao = unsafe { create_vao(&cube_verts) };
-
-    let texture = unsafe { Texture::new("container.jpg").unwrap() };
-    let texture_smile = unsafe { Texture::new("awesomeface.png").unwrap() };
+    let vao_light = unsafe { create_vao(&cube_verts) };
 
     if ENABLE_POLYGON_MODE {
         unsafe { gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE) }
@@ -134,26 +145,14 @@ fn main() {
 
     unsafe { check_gl_error().unwrap() };
 
-    let mut projection =
-        glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
-    let cube_positions: [glam::Vec3; 10] = [
-        glam::vec3(0.0, 0.0, 0.0),
-        glam::vec3(2.0, 5.0, -15.0),
-        glam::vec3(-1.5, -2.2, -2.5),
-        glam::vec3(-3.8, -2.0, -12.3),
-        glam::vec3(2.4, -0.4, -3.5),
-        glam::vec3(-1.7, 3.0, -7.5),
-        glam::vec3(1.3, -2.0, -2.5),
-        glam::vec3(1.5, 2.0, -2.5),
-        glam::vec3(1.5, 0.2, -1.5),
-        glam::vec3(-1.3, 1.0, -1.5),
-    ];
+    let mut projection: glam::Mat4;
 
     unsafe {
         gl::Enable(gl::DEPTH_TEST);
     }
 
     let mut camera = Camera::new();
+    camera.set_position(glam::vec3(0.0, 0.0, 3.0));
     let mut keyboard = Keyboard::new();
     let mut current_frame: std::time::Instant;
     let mut last_frame = std::time::Instant::now();
@@ -166,36 +165,61 @@ fn main() {
         last_frame = current_frame;
         unsafe {
             pre_render();
-            gl::ActiveTexture(gl::TEXTURE0);
-            gl::BindTexture(gl::TEXTURE_2D, texture.id);
-            gl::ActiveTexture(gl::TEXTURE1);
-            gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
-            shader_program.use_program();
-            shader_program.set_uniform_i32("texture2", 1).unwrap();
-            projection =
-                glam::Mat4::perspective_rh(f32::to_radians(camera.zoom), 800.0 / 600.0, 0.1, 100.0);
-            let view = camera.get_view_matrix();
-            shader_program.set_uniform_mat4("view", &view).unwrap();
-            shader_program
-                .set_uniform_mat4("projection", &projection)
-                .unwrap();
-            gl::BindVertexArray(vao);
-
-            for position in cube_positions {
-                let model = glam::Mat4::from_rotation_translation(
-                    glam::Quat::from_axis_angle(
-                        glam::vec3(0.5, 1.0, 0.5).normalize(),
-                        program_start_time.elapsed().as_secs_f32(),
-                    ),
-                    position,
-                );
-
-                shader_program.set_uniform_mat4("model", &model).unwrap();
-                gl::DrawArrays(gl::TRIANGLES, 0, 36);
-            }
-            gl::BindVertexArray(0);
+            box_shader_program.use_program();
         };
 
+        projection =
+            glam::Mat4::perspective_rh(f32::to_radians(camera.zoom), 800.0 / 600.0, 0.1, 100.0);
+        let view = camera.get_view_matrix();
+
+        // Drawing center cube
+        unsafe {
+            box_shader_program.set_uniform_mat4("view", &view).unwrap();
+            box_shader_program
+                .set_uniform_mat4("projection", &projection)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3("objectColor", 1.0, 0.5, 0.31)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3("lightColor", 1.0, 1.0, 1.0)
+                .unwrap();
+        };
+        unsafe { gl::BindVertexArray(vao) };
+        let model = glam::Mat4::IDENTITY;
+        unsafe {
+            box_shader_program
+                .set_uniform_mat4("model", &model)
+                .unwrap()
+        };
+        unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) };
+
+        // Drawing light source cube
+        unsafe {
+            light_shader_program.use_program();
+            light_shader_program
+                .set_uniform_mat4("view", &view)
+                .unwrap();
+            light_shader_program
+                .set_uniform_mat4("projection", &projection)
+                .unwrap();
+        };
+        unsafe { gl::BindVertexArray(vao_light) };
+        let light_position = glam::vec3(1.2, 1.0, 2.0);
+        let model = glam::Mat4::from_scale_rotation_translation(
+            glam::vec3(0.2, 0.2, 0.2),
+            glam::Quat::IDENTITY,
+            light_position,
+        );
+        unsafe {
+            light_shader_program
+                .set_uniform_mat4("model", &model)
+                .unwrap()
+        };
+        unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) };
+
+        // clean up
+        unsafe { gl::BindVertexArray(0) };
         window.gl_swap_window();
 
         for event in event_pump.poll_iter() {
