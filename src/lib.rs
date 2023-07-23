@@ -466,3 +466,21 @@ impl Camera {
         self.zoom = (self.zoom - y_offset as f32).clamp(1.0, 45.0);
     }
 }
+
+pub struct Keyboard {
+    pub w: bool,
+    pub a: bool,
+    pub s: bool,
+    pub d: bool,
+}
+
+impl Keyboard {
+    pub fn new() -> Self {
+        Keyboard {
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        }
+    }
+}

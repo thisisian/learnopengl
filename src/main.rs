@@ -134,7 +134,8 @@ fn main() {
 
     unsafe { check_gl_error().unwrap() };
 
-    let mut projection = glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
+    let mut projection =
+        glam::Mat4::perspective_rh(f32::to_radians(45.0), 800.0 / 600.0, 0.1, 100.0);
     let cube_positions: [glam::Vec3; 10] = [
         glam::vec3(0.0, 0.0, 0.0),
         glam::vec3(2.0, 5.0, -15.0),
@@ -153,6 +154,7 @@ fn main() {
     }
 
     let mut camera = Camera::new();
+    let mut keyboard = Keyboard::new();
     let mut current_frame: std::time::Instant;
     let mut last_frame = std::time::Instant::now();
     let mut delta_time: std::time::Duration;
@@ -170,7 +172,8 @@ fn main() {
             gl::BindTexture(gl::TEXTURE_2D, texture_smile.id);
             shader_program.use_program();
             shader_program.set_uniform_i32("texture2", 1).unwrap();
-            projection = glam::Mat4::perspective_rh(f32::to_radians(camera.zoom), 800.0 / 600.0, 0.1, 100.0);
+            projection =
+                glam::Mat4::perspective_rh(f32::to_radians(camera.zoom), 800.0 / 600.0, 0.1, 100.0);
             let view = camera.get_view_matrix();
             shader_program.set_uniform_mat4("view", &view).unwrap();
             shader_program
@@ -242,21 +245,56 @@ fn main() {
                 } => match keycode {
                     Some(sdl2::keyboard::Keycode::Escape) => break 'running,
                     Some(sdl2::keyboard::Keycode::W) => {
-                        camera.process_keyboard(CameraDirection::Forward, delta_time);
+                        keyboard.w = true;
                     }
                     Some(sdl2::keyboard::Keycode::A) => {
-                        camera.process_keyboard(CameraDirection::Left, delta_time);
+                        keyboard.a = true;
                     }
                     Some(sdl2::keyboard::Keycode::S) => {
-                        camera.process_keyboard(CameraDirection::Backward, delta_time);
+                        keyboard.s = true;
                     }
                     Some(sdl2::keyboard::Keycode::D) => {
-                        camera.process_keyboard(CameraDirection::Right, delta_time);
+                        keyboard.d = true;
+                    }
+                    _ => {}
+                },
+                sdl2::event::Event::KeyUp {
+                    timestamp: _,
+                    window_id: _,
+                    keycode,
+                    scancode: _,
+                    keymod: _,
+                    repeat: _,
+                } => match keycode {
+                    Some(sdl2::keyboard::Keycode::W) => {
+                        keyboard.w = false;
+                    }
+                    Some(sdl2::keyboard::Keycode::A) => {
+                        keyboard.a = false;
+                    }
+                    Some(sdl2::keyboard::Keycode::S) => {
+                        keyboard.s = false;
+                    }
+                    Some(sdl2::keyboard::Keycode::D) => {
+                        keyboard.d = false;
                     }
                     _ => {}
                 },
                 _ => {}
             }
+        }
+
+        if keyboard.w {
+            camera.process_keyboard(CameraDirection::Forward, delta_time)
+        }
+        if keyboard.a {
+            camera.process_keyboard(CameraDirection::Left, delta_time)
+        }
+        if keyboard.s {
+            camera.process_keyboard(CameraDirection::Backward, delta_time)
+        }
+        if keyboard.d {
+            camera.process_keyboard(CameraDirection::Right, delta_time)
         }
     }
 }
