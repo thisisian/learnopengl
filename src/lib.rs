@@ -252,7 +252,7 @@ unsafe fn check_shader_compile_errors(shader: u32) -> Result<(), String> {
     }
 }
 
-// VAO with a vertex attribute and a color attribute
+// VAO with a vertex attribute and a normal attribute
 pub unsafe fn create_vao(verts: &[f32]) -> u32 {
     let mut vbo = 0;
     let mut vao = 0;
@@ -280,20 +280,20 @@ pub unsafe fn create_vao(verts: &[f32]) -> u32 {
             3, // each vertex is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 5) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
             0 as *const c_void,
         );
 
         // Enable the attribute.
         gl::EnableVertexAttribArray(0);
 
-        // texture coordinate attributes
+        // normal vector attributes
         gl::VertexAttribPointer(
             1, // we want to bind this attribute to position 1
-            2, // each vertex is two floats long
+            3, // each normal vector is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 5) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
             (std::mem::size_of::<f32>() * 3) as *const c_void, // first data starts at 3rd float value
         );
         // Enable the attribute.
@@ -404,7 +404,7 @@ unsafe fn check_shader_link_errors(shader: u32) -> Result<(), String> {
 }
 
 pub struct Camera {
-    position: glam::Vec3,
+    pub position: glam::Vec3,
     front: glam::Vec3,
     up: glam::Vec3,
     right: glam::Vec3,
