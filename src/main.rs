@@ -180,10 +180,34 @@ fn main() {
                 .set_uniform_mat4("projection", &projection)
                 .unwrap();
             box_shader_program
-                .set_uniform_vec3("objectColor", 1.0, 0.5, 0.31)
+                .set_uniform_vec3("light.ambient", 0.2, 0.2, 0.2)
                 .unwrap();
             box_shader_program
-                .set_uniform_vec3("lightColor", 1.0, 1.0, 1.0)
+                .set_uniform_vec3("light.diffuse", 0.5, 0.5, 0.5)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3("light.specular", 1.0, 1.0, 1.0)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3(
+                    "light.position",
+                    light_position.x,
+                    light_position.y,
+                    light_position.z,
+                )
+                .unwrap();
+
+            box_shader_program
+                .set_uniform_vec3("material.ambient", 1.0, 0.5, 0.31)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3("material.diffuse", 1.0, 0.5, 0.31)
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3("material.specular", 0.5, 0.5, 0.5)
+                .unwrap();
+            box_shader_program
+                .set_uniform_f32("material.shininess", 32.0)
                 .unwrap();
         };
         unsafe { gl::BindVertexArray(vao) };
@@ -194,14 +218,6 @@ fn main() {
                 .unwrap()
         };
         unsafe {
-            box_shader_program
-                .set_uniform_vec3(
-                    "lightPos",
-                    light_position.x,
-                    light_position.y,
-                    light_position.z,
-                )
-                .unwrap()
         };
         unsafe {
             box_shader_program
