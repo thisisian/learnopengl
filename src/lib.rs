@@ -252,7 +252,7 @@ unsafe fn check_shader_compile_errors(shader: u32) -> Result<(), String> {
     }
 }
 
-// VAO with a vertex attribute and a normal attribute
+// VAO with a vertex attribute and a normal vector attribute and a texture coordinate attribute
 pub unsafe fn create_vao(verts: &[f32]) -> u32 {
     let mut vbo = 0;
     let mut vao = 0;
@@ -280,7 +280,7 @@ pub unsafe fn create_vao(verts: &[f32]) -> u32 {
             3, // each vertex is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
             0 as *const c_void,
         );
 
@@ -293,11 +293,23 @@ pub unsafe fn create_vao(verts: &[f32]) -> u32 {
             3, // each normal vector is three floats long
             gl::FLOAT,
             gl::FALSE, // do not normalize data points between [-1.0, 1.0]
-            (std::mem::size_of::<f32>() * 6) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
             (std::mem::size_of::<f32>() * 3) as *const c_void, // first data starts at 3rd float value
         );
         // Enable the attribute.
         gl::EnableVertexAttribArray(1);
+
+        // texture coord attributes
+        gl::VertexAttribPointer(
+            2, // we want to bind this attribute to position 1
+            2, // each normal vector is three floats long
+            gl::FLOAT,
+            gl::FALSE, // do not normalize data points between [-1.0, 1.0]
+            (std::mem::size_of::<f32>() * 8) as i32, // stride 0 defaults to width of each vertex without additional data
+            (std::mem::size_of::<f32>() * 6) as *const c_void, // first data starts at 3rd float value
+        );
+        // Enable the attribute.
+        gl::EnableVertexAttribArray(2);
 
         // unbind buffer
         gl::BindBuffer(gl::ARRAY_BUFFER, 0);
@@ -350,7 +362,7 @@ pub unsafe fn create_vao_indices(verts: &[f32], indices: &[u32]) -> u32 {
         // Enable the attribute.
         gl::EnableVertexAttribArray(0);
 
-        // color attributes
+        // Normal vector attributes
         gl::VertexAttribPointer(
             1, // we want to bind this attribute to position 1
             3, // each vertex is three floats long
