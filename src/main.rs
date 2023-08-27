@@ -136,6 +136,20 @@ fn main() {
         -0.5,  0.5, -0.5,  0.0,  1.0,  0.0,  0.0, 1.0
     ];
 
+    #[rustfmt::skip]
+    let cube_postiions: [glam::Vec3; 10] = [
+        glam::vec3( 0.0,  0.0,  0.0),
+        glam::vec3( 2.0,  5.0, -15.0),
+        glam::vec3(-1.5, -2.2, -2.5),
+        glam::vec3(-3.8, -2.0, -12.3),
+        glam::vec3( 2.4, -0.4, -3.5),
+        glam::vec3(-1.7,  3.0, -7.5),
+        glam::vec3( 1.3, -2.0, -2.5),
+        glam::vec3( 1.5,  2.0, -2.5),
+        glam::vec3( 1.5,  0.2, -1.5),
+        glam::vec3(-1.3,  1.0, -1.5)
+    ];
+
     let vao = unsafe { create_vao(&cube_verts) };
     let vao_light = unsafe { create_vao(&cube_verts) };
 
@@ -191,13 +205,41 @@ fn main() {
             box_shader_program
                 .set_uniform_vec3("light.specular", 1.0, 1.0, 1.0)
                 .unwrap();
+            //box_shader_program
+            //    .set_uniform_vec3("light.direction", -0.2, -1.0, -0.3)
+            //    .unwrap();
             box_shader_program
                 .set_uniform_vec3(
                     "light.position",
-                    light_position.x,
-                    light_position.y,
-                    light_position.z,
+                    camera.position.x,
+                    camera.position.y,
+                    camera.position.z,
                 )
+                .unwrap();
+            box_shader_program
+                .set_uniform_vec3(
+                    "light.direction",
+                    camera.front.x,
+                    camera.front.y,
+                    camera.front.z,
+                )
+                .unwrap();
+
+            box_shader_program
+                .set_uniform_f32("light.cutOff", 12.5_f32.to_radians().cos())
+                .unwrap();
+            box_shader_program
+                .set_uniform_f32("light.outerCutOff", 17.5_f32.to_radians().cos())
+                .unwrap();
+
+            box_shader_program
+                .set_uniform_f32("light.constant", 1.0)
+                .unwrap();
+            box_shader_program
+                .set_uniform_f32("light.linear", 0.09)
+                .unwrap();
+            box_shader_program
+                .set_uniform_f32("light.quadratic", 0.032)
                 .unwrap();
 
             box_shader_program
@@ -211,12 +253,6 @@ fn main() {
                 .unwrap();
         };
         unsafe { gl::BindVertexArray(vao) };
-        let model = glam::Mat4::IDENTITY;
-        unsafe {
-            box_shader_program
-                .set_uniform_mat4("model", &model)
-                .unwrap()
-        };
         unsafe {
             box_shader_program
                 .set_uniform_vec3(
@@ -232,7 +268,19 @@ fn main() {
         unsafe { gl::BindTexture(gl::TEXTURE_2D, texture.id) };
         unsafe { gl::ActiveTexture(gl::TEXTURE1) };
         unsafe { gl::BindTexture(gl::TEXTURE_2D, texture_specular.id) };
-        unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) };
+
+        for (idx, pos) in cube_postiions.iter().enumerate() {
+            let angle = 20.0 * idx as f32;
+            let rotation =
+                glam::Quat::from_axis_angle(glam::vec3(1.0, 0.3, 0.5).normalize(), angle);
+            let model = glam::Mat4::from_rotation_translation(rotation, *pos);
+            unsafe {
+                box_shader_program
+                    .set_uniform_mat4("model", &model)
+                    .unwrap()
+            };
+            unsafe { gl::DrawArrays(gl::TRIANGLES, 0, 36) };
+        }
 
         // Drawing light source cube
         unsafe {

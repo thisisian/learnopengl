@@ -417,7 +417,7 @@ unsafe fn check_shader_link_errors(shader: u32) -> Result<(), String> {
 
 pub struct Camera {
     pub position: glam::Vec3,
-    front: glam::Vec3,
+    pub front: glam::Vec3,
     up: glam::Vec3,
     right: glam::Vec3,
     world_up: glam::Vec3,
@@ -445,7 +445,7 @@ impl Camera {
             world_up: glam::vec3(0.0, 1.0, 0.0),
             yaw: -90.0,
             pitch: 0.0,
-            movement_speed: 2.5,
+            movement_speed: 4.5,
             mouse_sensitivity: 0.1,
             zoom: 45.0,
         };
@@ -496,6 +496,14 @@ impl Camera {
     pub fn process_mouse_scroll(&mut self, y_offset: i32) {
         self.zoom = (self.zoom - y_offset as f32).clamp(1.0, 45.0);
     }
+}
+
+pub struct Light {
+    //pub position: glam::Vec3,
+    pub direciton: glam::Vec3,
+    pub ambient: glam::Vec3,
+    pub diffuse: glam::Vec3,
+    pub specular: glam::Vec3,
 }
 
 pub struct Keyboard {
